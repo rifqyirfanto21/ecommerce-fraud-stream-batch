@@ -35,7 +35,6 @@ x-airflow-common: &airflow-common
   user: "${AIRFLOW_UID:-50000}:0"
 
 services:
-
   airflow_postgres:
     image: postgres:14
     restart: always
@@ -49,6 +48,25 @@ services:
       - pg_airflow_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "${POSTGRES_AIRFLOW_USER}"]
+      interval: 5s
+      retries: 5
+    networks:
+      - project-net
+
+  dwh_postgres:
+    image: postgres:14
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_DWH_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_DWH_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DWH_DB}
+    ports:
+      - "${POSTGRES_DWH_PORT}:5432"
+    volumes:
+      - pg_dwh_data:/var/lib/postgresql/data
+      - ./docker/sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_DWH_USER}"]
       interval: 5s
       retries: 5
     networks:
@@ -92,24 +110,6 @@ services:
       interval: 10s
       timeout: 10s
       retries: 5
-
-  dwh_postgres:
-    image: postgres:14
-    restart: always
-    environment:
-      POSTGRES_USER: ${POSTGRES_DWH_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_DWH_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DWH_DB}
-    ports:
-      - "${POSTGRES_DWH_PORT}:5432"
-    volumes:
-      - pg_dwh_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD", "pg_isready", "-U", "${POSTGRES_DWH_USER}"]
-      interval: 5s
-      retries: 5
-    networks:
-      - project-net
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.6.1

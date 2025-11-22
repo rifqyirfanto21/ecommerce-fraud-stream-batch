@@ -21,7 +21,7 @@ def generate_users(n):
             "name": full_name,
             "email": email,
             "phone_number": fake.phone_number(),
-            "created_at": ts
+            "created_date": ts
         })
 
     return users
@@ -112,7 +112,7 @@ def generate_products(n):
             "currency": "IDR",
             "price": price,
             "cost": cost,
-            "created_at": ts
+            "created_date": ts
         })
 
     return rows
