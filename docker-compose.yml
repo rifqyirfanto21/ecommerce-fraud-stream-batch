@@ -26,6 +26,7 @@ x-airflow-common: &airflow-common
     - ./airflow/dbt:/opt/dbt
     - ./src:/opt/airflow/src
     - ./gcp:/opt/gcp:ro
+    - ./data:/opt/airflow/data
   networks:
     - project-net
   depends_on:
