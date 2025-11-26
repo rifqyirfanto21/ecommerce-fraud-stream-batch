@@ -56,16 +56,21 @@ def choose_amount_anomaly_qty(price: int) -> int:
 
 def generate_bot_sequence(user_ids):
     mode = random.choice(["single_user_burst", "sequential_users", "clustered"])
+
     if mode == "single_user_burst":
         u = random.choice(user_ids)
-        return [u] * random.randint(3, 7)
+        return mode, [u] * random.randint(3, 5)
+
     if mode == "sequential_users":
         sample_size = min(len(user_ids), random.randint(3, 6))
-        seq = random.sample(user_ids, sample_size)
-        seq_sorted = sorted(seq)
-        return seq_sorted
+        seq = sorted(random.sample(user_ids, sample_size))
+        return mode, seq
+
+    # Mode C: random users (clustered)
     sample_size = min(len(user_ids), random.randint(3, 5))
-    return random.sample(user_ids, sample_size)
+    seq = random.sample(user_ids, sample_size)
+    return mode, seq
+
 
 def fabricate_midnight_timestamp_same_date(now: datetime) -> datetime:
     date_part = now.date()
@@ -74,6 +79,7 @@ def fabricate_midnight_timestamp_same_date(now: datetime) -> datetime:
     second = random.randint(0, 59)
     return datetime(year=date_part.year, month=date_part.month, day=date_part.day,
                     hour=hour, minute=minute, second=second, tzinfo=timezone.utc)
+
 
 def continuous_orders_stream(
     users_df,
@@ -84,12 +90,7 @@ def continuous_orders_stream(
     qty_anomaly_probability: float = 0.02,
     amount_anomaly_probability: float = 0.02
 ):
-    """
-    Continuous streaming orders generator.
-    users_df: DataFrame with 'user_id' (int)
-    products_df: DataFrame with 'product_id' (int) and 'price' (int)
-    send_func: callable to handle each generated order (e.g. produce to Kafka). If None -> print.
-    """
+
     user_ids = users_df["user_id"].tolist()
     product_ids = products_df["product_id"].tolist()
     price_map = dict(zip(products_df["product_id"], products_df["price"]))
@@ -99,18 +100,32 @@ def continuous_orders_stream(
         while True:
             now = datetime.now(timezone.utc)
 
+            # BOT BURST FABRICATION
             if random.random() < bot_burst_probability and len(user_ids) >= 3:
-                bot_seq = generate_bot_sequence(user_ids)
+                mode, bot_seq = generate_bot_sequence(user_ids)
+
+                # choose product ONCE for whole burst
+                bot_pid = random.choice(product_ids)
+                bot_price = int(price_map[bot_pid])
+
+                # qty only fixed for mode B & C
+                fixed_qty = choose_quantity_normal()
+
                 for u in bot_seq:
-                    pid = random.choice(product_ids)
-                    price = int(price_map[pid])
-                    qty = choose_quantity_normal()
-                    amount_numeric = price * qty
+
+                    if mode == "single_user_burst":
+                        qty = choose_quantity_normal()
+                    else:
+                        qty = fixed_qty
+
+                    amount_numeric = bot_price * qty
+
                     created_ts = datetime.now(timezone.utc)
+
                     order = {
                         "order_id": generate_order_id(),
                         "user_id": f"U{u}",
-                        "product_id": f"P{pid}",
+                        "product_id": f"P{bot_pid}",
                         "quantity": qty,
                         "amount": format_rupiah(amount_numeric),
                         "amount_numeric": amount_numeric,
@@ -120,10 +135,13 @@ def continuous_orders_stream(
                         "event_ts": created_ts.isoformat(),
                         "source": "streaming"
                     }
+
                     send(order)
-                    time.sleep(random.uniform(5, 10))
+                    time.sleep(random.uniform(0.1, 0.3))
+
                 continue
 
+            # NORMAL ORDER FLOW
             user = random.choice(user_ids)
             product = random.choice(product_ids)
             price = int(price_map[product])
@@ -134,10 +152,12 @@ def continuous_orders_stream(
                 quantity = force_qty_over_100()
                 fabricated_ts = fabricate_midnight_timestamp_same_date(now)
                 created_ts = fabricated_ts
+
             elif random.random() < amount_anomaly_probability:
                 quantity = choose_amount_anomaly_qty(price)
                 fabricated_ts = fabricate_midnight_timestamp_same_date(now)
                 created_ts = fabricated_ts
+
             else:
                 created_ts = datetime.now(timezone.utc)
 
@@ -158,7 +178,6 @@ def continuous_orders_stream(
             }
 
             send(order)
-
             time.sleep(random.uniform(*sleep_range))
 
     except KeyboardInterrupt:
