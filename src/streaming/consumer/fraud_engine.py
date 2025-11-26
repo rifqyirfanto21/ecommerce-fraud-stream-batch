@@ -1,3 +1,4 @@
+# src/streaming/fraud_engine.py
 from kafka import KafkaConsumer, KafkaProducer
 import json
 from datetime import datetime, timedelta
@@ -22,43 +23,45 @@ producer_fraud = KafkaProducer(
     value_serializer=lambda v: json.dumps(v).encode("utf-8")
 )
 
-BUFFER = deque(maxlen=50)
+BUFFER = deque(maxlen=200)   # increase buffer length for reliable detection
 WINDOW = timedelta(seconds=10)
 
-# BOT MODE A
-# same user_id + same product_id + 3 consecutive orders
+
 def detect_bot_mode_A(order):
+    """
+    Mode A: same user_id + same product_id + 3 consecutive orders within WINDOW.
+    """
     user = order["user_id"]
     pid = order["product_id"]
     now = datetime.fromisoformat(order["event_ts"])
 
     recent = [
         o for o in BUFFER
-        if o["user_id"] == user
-        and o["product_id"] == pid
+        if o.get("user_id") == user and o.get("product_id") == pid
         and now - datetime.fromisoformat(o["event_ts"]) < WINDOW
     ]
+    return len(recent) >= 2  # + current => 3
 
-    return len(recent) >= 2   # + current = 3
 
-# BOT MODE B:
-# Sequential user_ids + same product + same qty
 def detect_bot_mode_B(order):
+    """
+    Mode B: sequential (ascending) numeric user_id sequence, same product, same qty, consecutive
+    """
     now = datetime.fromisoformat(order["event_ts"])
 
-    recent = [
-        o for o in BUFFER
-        if now - datetime.fromisoformat(o["event_ts"]) < WINDOW
-    ]
+    recent = [o for o in BUFFER
+              if now - datetime.fromisoformat(o["event_ts"]) < WINDOW]
 
     if len(recent) < 2:
         return False
 
-    # include current order at end
     seq = recent + [order]
 
-    # extract values
-    uids = [int(o["user_id"].replace("U", "")) for o in seq]
+    try:
+        uids = [int(o["user_id"]) for o in seq]
+    except Exception:
+        return False
+
     pids = [o["product_id"] for o in seq]
     qtys = [o["quantity"] for o in seq]
 
@@ -69,21 +72,20 @@ def detect_bot_mode_B(order):
 
     return uids == sorted(uids) and len(uids) >= 3
 
-# BOT MODE C:
-# Random users BUT same product + same qty + consecutive
+
 def detect_bot_mode_C(order):
+    """
+    Mode C: different random user_ids but same product and same qty, consecutive
+    """
     now = datetime.fromisoformat(order["event_ts"])
 
-    recent = [
-        o for o in BUFFER
-        if now - datetime.fromisoformat(o["event_ts"]) < WINDOW
-    ]
+    recent = [o for o in BUFFER
+              if now - datetime.fromisoformat(o["event_ts"]) < WINDOW]
 
     if len(recent) < 2:
         return False
 
     seq = recent + [order]
-
     pids = [o["product_id"] for o in seq]
     qtys = [o["quantity"] for o in seq]
 
@@ -92,43 +94,57 @@ def detect_bot_mode_C(order):
     if len(set(qtys)) != 1:
         return False
 
+    # consecutive meaning there were no interleaving orders outside the seq
+    # Using BUFFER with recent window helps ensure 'consecutive-ish' sequence.
     return True
 
-def apply_fraud_rules(order):
 
-    # Rule A: Country not ID
+def apply_fraud_rules(order):
+    """
+    Return 'Fraud' or 'Genuine'
+    Rules:
+      - Country != 'ID' => Fraud
+      - Quantity > 100 and created_date hour in [0,4) UTC => Fraud
+      - Amount_numeric > 100_000_000 and created_date hour in [0,4) UTC => Fraud
+      - Bot patterns A/B/C => Fraud
+    """
+    # Rule A
     if order.get("country") != "ID":
         return "Fraud"
 
     created_dt = datetime.fromisoformat(order["created_date"])
     hour = created_dt.hour
 
-    # Rule B: Quantity anomaly
+    # Rule B
     if 0 <= hour < 4 and order.get("quantity", 0) > 100:
         return "Fraud"
 
-    # Rule C: Amount anomaly
+    # Rule C
     if 0 <= hour < 4 and order.get("amount_numeric", 0) > 100_000_000:
         return "Fraud"
 
-    # Rule D: Bot patterns
+    # Rule D: bot detection
     if detect_bot_mode_A(order) or detect_bot_mode_B(order) or detect_bot_mode_C(order):
         return "Fraud"
 
     return "Genuine"
+
 
 print("Fraud engine started... Listening to orders topic.")
 try:
     for msg in consumer:
         order = msg.value
 
+        # append to buffer first (so detection includes recent history)
         BUFFER.append(order)
 
         status = apply_fraud_rules(order)
         order["status"] = status
 
+        # emit processed full stream
         producer_processed.send("processed_orders", order)
 
+        # emit fraud alerts only for frauds
         if status == "Fraud":
             producer_fraud.send("fraud_alerts", order)
 

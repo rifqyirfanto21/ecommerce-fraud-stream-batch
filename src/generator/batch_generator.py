@@ -1,22 +1,27 @@
+# src/generator/batch_generator.py
 from faker import Faker
 import random
 from datetime import datetime, timezone
 
 fake = Faker("id_ID")
 
-def generate_users(n):
+
+def generate_users(n: int):
+    """
+    Generate n user dicts WITHOUT user_id (Postgres will generate it).
+    Fields: name, email, phone_number, created_date
+    """
     email_domains = ["gmail.com", "yahoo.com", "outlook.com", "yahoo.co.id", "hotmail.com"]
     ts = datetime.now(timezone.utc)
     users = []
 
-    for id in range(1, n + 1):
+    for _ in range(n):
         full_name = fake.name()
         username = full_name.lower().replace(" ", ".")
         domain = random.choice(email_domains)
         email = f"{username}@{domain}"
 
         users.append({
-            "user_id": id,
             "name": full_name,
             "email": email,
             "phone_number": fake.phone_number(),
@@ -24,6 +29,7 @@ def generate_users(n):
         })
 
     return users
+
 
 CATEGORY_DEFINITION = {
     "beauty & health": {
@@ -69,7 +75,8 @@ DESCRIPTORS = [
     "Smart", "Clean", "Pure", "Active", "Compact"
 ]
 
-def generate_product_name(brand, subcat):
+
+def generate_product_name(brand: str, subcat: str) -> str:
     r = random.random()
     if r < 0.6:
         n_words = 1
@@ -82,12 +89,17 @@ def generate_product_name(brand, subcat):
     descriptor_part = " ".join(desc)
     return f"{brand} {subcat} {descriptor_part}"
 
-def generate_products(n):
+
+def generate_products(n: int):
+    """
+    Generate n product dicts WITHOUT product_id (Postgres will generate it).
+    Fields: product_name, brand, category, sub_category, currency, price, cost, created_date
+    """
     rows = []
     ts = datetime.now(timezone.utc)
     used_names = set()
 
-    for product_id in range(1, n + 1):
+    for _ in range(n):
         category = random.choice(list(CATEGORY_DEFINITION.keys()))
         config = CATEGORY_DEFINITION[category]
 
@@ -103,7 +115,6 @@ def generate_products(n):
                 break
 
         rows.append({
-            "product_id": product_id,
             "product_name": name,
             "brand": brand,
             "category": category,

@@ -1,5 +1,5 @@
-CREATE TABLE IF NOT EXISTS users_raw (
-    user_id        VARCHAR(50) PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS raw_users (
+    user_id        BIGSERIAL PRIMARY KEY,
     name           VARCHAR(200) NOT NULL,
     email          VARCHAR(200) NOT NULL,
     phone_number   VARCHAR(50),
@@ -8,8 +8,8 @@ CREATE TABLE IF NOT EXISTS users_raw (
     source         VARCHAR(50) NOT NULL DEFAULT 'batch'
 );
 
-CREATE TABLE IF NOT EXISTS products_raw (
-    product_id     VARCHAR(50) PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS raw_products (
+    product_id     BIGSERIAL PRIMARY KEY,
     product_name   VARCHAR(255) NOT NULL,
     brand          VARCHAR(100),
     category       VARCHAR(100),
@@ -22,10 +22,10 @@ CREATE TABLE IF NOT EXISTS products_raw (
     source         VARCHAR(50) NOT NULL DEFAULT 'batch'
 );
 
-CREATE TABLE IF NOT EXISTS orders_raw (
+CREATE TABLE IF NOT EXISTS raw_orders (
     order_id        VARCHAR(50) PRIMARY KEY,
-    user_id         VARCHAR(50) NOT NULL,
-    product_id      VARCHAR(50) NOT NULL,
+    user_id         BIGINT NOT NULL,
+    product_id      BIGINT NOT NULL,
     quantity        INT NOT NULL,
     amount          VARCHAR(50) NOT NULL,
     amount_numeric  BIGINT NOT NULL,

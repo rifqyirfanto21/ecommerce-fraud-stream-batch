@@ -3,6 +3,7 @@ import time
 from math import ceil
 from datetime import datetime, timezone
 from typing import Callable, Optional
+from src.utils.db_utils import fetch_users_df, fetch_products_df, fetch_last_order_counter
 
 COUNTRY_WEIGHTS = {
     "ID": 0.95,
@@ -17,23 +18,11 @@ COUNTRY_WEIGHTS = {
 COUNTRIES = list(COUNTRY_WEIGHTS.keys())
 WEIGHTS = list(COUNTRY_WEIGHTS.values())
 
-order_counter = 1
-
 def format_rupiah(n: int) -> str:
     return f"Rp.{n:,}".replace(",", ".")
 
 def pick_country() -> str:
     return random.choices(COUNTRIES, weights=WEIGHTS, k=1)[0]
-
-def generate_order_id() -> str:
-    global order_counter
-    oid = f"O{order_counter}"
-    order_counter += 1
-    return oid
-
-def in_midnight_window_utc(dt: datetime) -> bool:
-    h = dt.hour
-    return 0 <= h < 4
 
 def choose_quantity_normal() -> int:
     r = random.random()
@@ -56,21 +45,16 @@ def choose_amount_anomaly_qty(price: int) -> int:
 
 def generate_bot_sequence(user_ids):
     mode = random.choice(["single_user_burst", "sequential_users", "clustered"])
-
     if mode == "single_user_burst":
         u = random.choice(user_ids)
         return mode, [u] * random.randint(3, 5)
-
     if mode == "sequential_users":
         sample_size = min(len(user_ids), random.randint(3, 6))
         seq = sorted(random.sample(user_ids, sample_size))
         return mode, seq
-
-    # Mode C: random users (clustered)
     sample_size = min(len(user_ids), random.randint(3, 5))
     seq = random.sample(user_ids, sample_size)
     return mode, seq
-
 
 def fabricate_midnight_timestamp_same_date(now: datetime) -> datetime:
     date_part = now.date()
@@ -80,68 +64,86 @@ def fabricate_midnight_timestamp_same_date(now: datetime) -> datetime:
     return datetime(year=date_part.year, month=date_part.month, day=date_part.day,
                     hour=hour, minute=minute, second=second, tzinfo=timezone.utc)
 
-
 def continuous_orders_stream(
-    users_df,
-    products_df,
     send_func: Optional[Callable[[dict], None]] = None,
     sleep_range: tuple = (0.3, 1.5),
     bot_burst_probability: float = 0.10,
     qty_anomaly_probability: float = 0.02,
-    amount_anomaly_probability: float = 0.02
+    amount_anomaly_probability: float = 0.02,
+    refresh_interval_seconds: int = 3600,
 ):
+    # send_func: callable(order_dict), default -> print
+    send = send_func or (lambda o: print(o))
+
+    # initial load from Postgres raw tables
+    users_df = fetch_users_df()
+    products_df = fetch_products_df()
+
+    # wait until batch data exists
+    while users_df.empty or products_df.empty:
+        print("Waiting for raw_users/raw_products in Postgres...")
+        time.sleep(5)
+        users_df = fetch_users_df()
+        products_df = fetch_products_df()
 
     user_ids = users_df["user_id"].tolist()
     product_ids = products_df["product_id"].tolist()
     price_map = dict(zip(products_df["product_id"], products_df["price"]))
-    send = send_func or (lambda o: print(o))
+
+    last_refresh = time.time()
+    order_counter = fetch_last_order_counter() or 0
+    order_counter += 1
 
     try:
         while True:
             now = datetime.now(timezone.utc)
 
-            # BOT BURST FABRICATION
+            # refresh users/products periodically
+            if time.time() - last_refresh > refresh_interval_seconds:
+                users_df = fetch_users_df()
+                products_df = fetch_products_df()
+                if not users_df.empty and not products_df.empty:
+                    user_ids = users_df["user_id"].tolist()
+                    product_ids = products_df["product_id"].tolist()
+                    price_map = dict(zip(products_df["product_id"], products_df["price"]))
+                    last_refresh = time.time()
+                    print("Refreshed users/products cache from Postgres")
+
+            # BOT burst fabrication
             if random.random() < bot_burst_probability and len(user_ids) >= 3:
                 mode, bot_seq = generate_bot_sequence(user_ids)
-
-                # choose product ONCE for whole burst
                 bot_pid = random.choice(product_ids)
                 bot_price = int(price_map[bot_pid])
-
-                # qty only fixed for mode B & C
                 fixed_qty = choose_quantity_normal()
 
                 for u in bot_seq:
-
                     if mode == "single_user_burst":
                         qty = choose_quantity_normal()
                     else:
                         qty = fixed_qty
 
                     amount_numeric = bot_price * qty
-
                     created_ts = datetime.now(timezone.utc)
 
                     order = {
-                        "order_id": generate_order_id(),
-                        "user_id": f"U{u}",
-                        "product_id": f"P{bot_pid}",
-                        "quantity": qty,
+                        "order_id": f"O{order_counter}",
+                        "user_id": int(u),
+                        "product_id": int(bot_pid),
+                        "quantity": int(qty),
                         "amount": format_rupiah(amount_numeric),
-                        "amount_numeric": amount_numeric,
+                        "amount_numeric": int(amount_numeric),
                         "country": pick_country(),
                         "status": "pending",
                         "created_date": created_ts.replace(microsecond=0).isoformat(),
                         "event_ts": created_ts.isoformat(),
                         "source": "streaming"
                     }
-
+                    order_counter += 1
                     send(order)
                     time.sleep(random.uniform(0.1, 0.3))
-
                 continue
 
-            # NORMAL ORDER FLOW
+            # normal flow
             user = random.choice(user_ids)
             product = random.choice(product_ids)
             price = int(price_map[product])
@@ -150,26 +152,22 @@ def continuous_orders_stream(
 
             if random.random() < qty_anomaly_probability:
                 quantity = force_qty_over_100()
-                fabricated_ts = fabricate_midnight_timestamp_same_date(now)
-                created_ts = fabricated_ts
-
+                created_ts = fabricate_midnight_timestamp_same_date(now)
             elif random.random() < amount_anomaly_probability:
                 quantity = choose_amount_anomaly_qty(price)
-                fabricated_ts = fabricate_midnight_timestamp_same_date(now)
-                created_ts = fabricated_ts
-
+                created_ts = fabricate_midnight_timestamp_same_date(now)
             else:
                 created_ts = datetime.now(timezone.utc)
 
             amount_numeric = price * quantity
 
             order = {
-                "order_id": generate_order_id(),
-                "user_id": f"U{user}",
-                "product_id": f"P{product}",
-                "quantity": quantity,
+                "order_id": f"O{order_counter}",
+                "user_id": int(user),
+                "product_id": int(product),
+                "quantity": int(quantity),
                 "amount": format_rupiah(amount_numeric),
-                "amount_numeric": amount_numeric,
+                "amount_numeric": int(amount_numeric),
                 "country": pick_country(),
                 "status": "pending",
                 "created_date": created_ts.replace(microsecond=0).isoformat(),
@@ -177,7 +175,9 @@ def continuous_orders_stream(
                 "source": "streaming"
             }
 
+            order_counter += 1
             send(order)
+
             time.sleep(random.uniform(*sleep_range))
 
     except KeyboardInterrupt:
