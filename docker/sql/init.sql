@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS raw_users (
     user_id        BIGSERIAL PRIMARY KEY,
     name           VARCHAR(200) NOT NULL,
-    email          VARCHAR(200) NOT NULL,
+    email          VARCHAR(200) NOT NULL UNIQUE,
     phone_number   VARCHAR(50),
     created_date   TIMESTAMPTZ NOT NULL,
     ingestion_ts   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS raw_users (
 
 CREATE TABLE IF NOT EXISTS raw_products (
     product_id     BIGSERIAL PRIMARY KEY,
-    product_name   VARCHAR(255) NOT NULL,
+    product_name   VARCHAR(255) NOT NULL UNIQUE,
     brand          VARCHAR(100),
     category       VARCHAR(100),
     sub_category   VARCHAR(100),

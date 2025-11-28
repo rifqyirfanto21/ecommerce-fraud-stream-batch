@@ -1,4 +1,3 @@
-# src/generator/batch_generator.py
 from faker import Faker
 import random
 from datetime import datetime, timezone
@@ -8,7 +7,7 @@ fake = Faker("id_ID")
 
 def generate_users(n: int):
     """
-    Generate n user dicts WITHOUT user_id (Postgres will generate it).
+    Generate n user dicts.
     Fields: name, email, phone_number, created_date
     """
     email_domains = ["gmail.com", "yahoo.com", "outlook.com", "yahoo.co.id", "hotmail.com"]
@@ -77,6 +76,9 @@ DESCRIPTORS = [
 
 
 def generate_product_name(brand: str, subcat: str) -> str:
+    """
+    Generate a product name given brand and subcategory
+    """
     r = random.random()
     if r < 0.6:
         n_words = 1
@@ -92,7 +94,7 @@ def generate_product_name(brand: str, subcat: str) -> str:
 
 def generate_products(n: int):
     """
-    Generate n product dicts WITHOUT product_id (Postgres will generate it).
+    Generate n product dicts.
     Fields: product_name, brand, category, sub_category, currency, price, cost, created_date
     """
     rows = []

@@ -9,7 +9,7 @@ from typing import List, Dict, Any, Optional
 try:
     from src.utils.config import DB_CONFIG  # type: ignore
 except Exception:
-    from src.config import DB_CONFIG  # type: ignore
+    from src.utils.config import DB_CONFIG  # type: ignore
 
 _engine: Optional[Engine] = None
 
@@ -30,13 +30,13 @@ def get_engine() -> Engine:
     return _engine
 
 def insert_users(users: List[Dict[str, Any]]):
-    # insert batch into raw_users; dedupe by name
+    # insert batch into raw_users; dedupe by email
     engine = get_engine()
     query = text(
         """
         INSERT INTO raw_users (name, email, phone_number, created_date)
         VALUES (:name, :email, :phone_number, :created_date)
-        ON CONFLICT (name) DO NOTHING
+        ON CONFLICT (email) DO NOTHING
         """
     )
     try:
@@ -72,23 +72,31 @@ def insert_products(products: List[Dict[str, Any]]):
             conn.execute(query, products)
 
 def fetch_users_df(limit: Optional[int] = None) -> pd.DataFrame:
-    # return user_id (int) and other fields
     engine = get_engine()
-    sql = "SELECT user_id, name, email, phone_number, created_date FROM raw_users ORDER BY user_id"
+    sql = (
+        "SELECT user_id, name, email, phone_number, created_date "
+        "FROM raw_users ORDER BY user_id"
+    )
     if limit:
         sql += f" LIMIT {int(limit)}"
-    return pd.read_sql(sql, con=engine)
+
+    with engine.connect() as conn:
+        return pd.read_sql(sql, conn)
+
 
 def fetch_products_df(limit: Optional[int] = None) -> pd.DataFrame:
-    # return product_id (int) and price etc
     engine = get_engine()
-    sql = """SELECT product_id, product_name, brand, category, sub_category,
-                    currency, price, cost, created_date
-             FROM raw_products
-             ORDER BY product_id"""
+    sql = """
+        SELECT product_id, product_name, brand, category, sub_category,
+               currency, price, cost, created_date
+        FROM raw_products
+        ORDER BY product_id
+    """
     if limit:
         sql += f" LIMIT {int(limit)}"
-    return pd.read_sql(sql, con=engine)
+
+    with engine.connect() as conn:
+        return pd.read_sql(sql, conn)
 
 def fetch_last_order_counter() -> int:
     # extract numeric part of order_id like 'O1234' from raw_orders
@@ -104,3 +112,49 @@ def fetch_last_order_counter() -> int:
     if res is None:
         return 0
     return int(res)
+
+def upsert_processed_orders(orders: List[Dict[str, Any]]):
+    """
+    Batch upsert into raw_orders.
+    - Inserts new records
+    - On conflict(order_id) → updates all mutable fields
+    """
+    if not orders:
+        return
+
+    engine = get_engine()
+
+    query = text("""
+        INSERT INTO raw_orders (
+            order_id, user_id, product_id, quantity,
+            amount, amount_numeric, country, status,
+            created_date, event_ts, source
+        )
+        VALUES (
+            :order_id, :user_id, :product_id, :quantity,
+            :amount, :amount_numeric, :country, :status,
+            :created_date, :event_ts, :source
+        )
+        ON CONFLICT (order_id) DO UPDATE SET
+            user_id        = EXCLUDED.user_id,
+            product_id     = EXCLUDED.product_id,
+            quantity       = EXCLUDED.quantity,
+            amount         = EXCLUDED.amount,
+            amount_numeric = EXCLUDED.amount_numeric,
+            country        = EXCLUDED.country,
+            status         = EXCLUDED.status,
+            created_date   = EXCLUDED.created_date,
+            event_ts       = EXCLUDED.event_ts,
+            source         = EXCLUDED.source,
+            ingestion_ts   = NOW()         -- refresh ingestion time
+    """)
+
+    try:
+        with engine.begin() as conn:
+            conn.execute(query, orders)
+    except OperationalError:
+        global _engine
+        _engine = None
+        engine = get_engine()
+        with engine.begin() as conn:
+            conn.execute(query, orders)

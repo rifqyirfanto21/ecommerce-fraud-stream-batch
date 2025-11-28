@@ -19,12 +19,21 @@ COUNTRIES = list(COUNTRY_WEIGHTS.keys())
 WEIGHTS = list(COUNTRY_WEIGHTS.values())
 
 def format_rupiah(n: int) -> str:
+    """
+    Format an integer as Rupiah currency string.
+    """
     return f"Rp.{n:,}".replace(",", ".")
 
 def pick_country() -> str:
+    """
+    Random pick a country based on the predefined weights.
+    """
     return random.choices(COUNTRIES, weights=WEIGHTS, k=1)[0]
 
 def choose_quantity_normal() -> int:
+    """
+    Choose a normal quantity based on predefined probabilities.
+    """
     r = random.random()
     if r < 0.7:
         return 1
@@ -33,9 +42,15 @@ def choose_quantity_normal() -> int:
     return random.randint(3, 5)
 
 def force_qty_over_100() -> int:
+    """
+    Force quantity to be over 100 for fabricated fraud.
+    """
     return random.randint(101, 300)
 
 def choose_amount_anomaly_qty(price: int) -> int:
+    """
+    Choose quantity to create an amount anomaly based on price for fabricated fraud.
+    """
     if price <= 0:
         return 101
     needed = ceil(100_000_000 / price)
@@ -44,6 +59,9 @@ def choose_amount_anomaly_qty(price: int) -> int:
     return random.randint(101, 300)
 
 def generate_bot_sequence(user_ids):
+    """
+    Random generate for fabricated bot sequence.
+    """
     mode = random.choice(["single_user_burst", "sequential_users", "clustered"])
     if mode == "single_user_burst":
         u = random.choice(user_ids)
@@ -57,6 +75,9 @@ def generate_bot_sequence(user_ids):
     return mode, seq
 
 def fabricate_midnight_timestamp_same_date(now: datetime) -> datetime:
+    """
+    Generate random time between midnight and 3 AM on the same date for fabricated fraud.
+    """
     date_part = now.date()
     hour = random.randint(0, 3)
     minute = random.randint(0, 59)
@@ -72,6 +93,9 @@ def continuous_orders_stream(
     amount_anomaly_probability: float = 0.02,
     refresh_interval_seconds: int = 3600,
 ):
+    """
+    Orders event stream generator.
+    """
     # send_func: callable(order_dict), default -> print
     send = send_func or (lambda o: print(o))
 

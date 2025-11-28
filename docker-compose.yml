@@ -1,4 +1,5 @@
 x-airflow-env: &airflow-env
+  RUN_ENV: docker
   AIRFLOW__CORE__EXECUTOR: LocalExecutor
   AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
   AIRFLOW__CORE__LOAD_EXAMPLES: "false"
@@ -7,11 +8,12 @@ x-airflow-env: &airflow-env
   _AIRFLOW_WWW_USER_CREATE: "true"
   _AIRFLOW_WWW_USER_USERNAME: airflow
   _AIRFLOW_WWW_USER_PASSWORD: airflow
-  PYTHONPATH: "/opt/airflow/src:/opt/airflow/dags"
+  PYTHONPATH: "/opt/airflow/"
   DBT_PROFILES_DIR: /opt/dbt
   GOOGLE_APPLICATION_CREDENTIALS: /opt/gcp/service-account.json
 
-x-airflow-common: &airflow-common
+x-airflow-common: 
+  &airflow-common
   build:
     context: ./docker/airflow
     dockerfile: Dockerfile
@@ -27,7 +29,6 @@ x-airflow-common: &airflow-common
     - ./airflow/dbt:/opt/dbt
     - ./src:/opt/airflow/src
     - ./gcp:/opt/gcp:ro
-    - ./data:/opt/airflow/data
   networks:
     - project-net
   user: "${AIRFLOW_UID:-50000}:0"
@@ -62,10 +63,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_DWH_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DWH_DB}
     ports:
-      - "${POSTGRES_DWH_PORT}:5432"
+      - "${POSTGRES_DWH_PORT_EXT}:5432"
     volumes:
       - pg_dwh_data:/var/lib/postgresql/data
-      - ./docker/sql/init_dwh.sql:/docker-entrypoint-initdb.d/init_dwh.sql:ro
+      - ./docker/sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "${POSTGRES_DWH_USER}"]
       interval: 5s
@@ -75,17 +76,16 @@ services:
 
   airflow-init:
     <<: *airflow-common
-    environment:
-      <<: *airflow-env
-      _AIRFLOW_DB_MIGRATE: 'true'
     entrypoint: /bin/bash
     command:
       - -c
       - |
         mkdir -p /sources/logs /sources/dags /sources/plugins
         chown -R "${AIRFLOW_UID}:0" /sources/{logs,dags,plugins}
-        # run migrations / create users and connections if needed
         exec /entrypoint airflow db upgrade
+    environment:
+      <<: *airflow-env
+      _AIRFLOW_DB_MIGRATE: 'true'
     user: "0:0"
     volumes:
       - ./airflow:/sources
@@ -127,6 +127,9 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
     ports:
       - "${ZOOKEEPER_PORT}:2181"
+    volumes:
+      - zk_data:/var/lib/zookeeper/data
+      - zk_log:/var/lib/zookeeper/log
     networks:
       - project-net
 
@@ -144,6 +147,8 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
     ports:
       - "${KAFKA_PORT}:9092"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
     networks:
       - project-net
 
@@ -157,6 +162,28 @@ services:
       KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:${ZOOKEEPER_PORT}
     depends_on:
       - kafka
+    networks:
+      - project-net
+
+  loader:
+    build:
+      context: .
+      dockerfile: docker/loader/Dockerfile
+    env_file:
+      - .env
+    environment:
+      RUN_ENV: docker
+      KAFKA_BROKER: kafka:29092
+      POSTGRES_HOST: ${POSTGRES_DWH_HOST}
+      POSTGRES_PORT: ${POSTGRES_DWH_PORT}
+      POSTGRES_DB: ${POSTGRES_DWH_DB}
+      POSTGRES_USER: ${POSTGRES_DWH_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_DWH_PASSWORD}
+      LOADER_BATCH_SIZE: 100
+      LOADER_FLUSH_INTERVAL: 5
+    depends_on:
+      - kafka
+      - dwh_postgres
     networks:
       - project-net
 
@@ -188,3 +215,6 @@ volumes:
   pg_airflow_data:
   pg_dwh_data:
   grafana_data:
+  zk_data:
+  zk_log:
+  kafka_data:
