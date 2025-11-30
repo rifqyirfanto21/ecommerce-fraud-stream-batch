@@ -1,10 +1,3 @@
-{{
-    config(
-        materialized='table',
-        cluster_by=['product_id', 'category', 'sub_category']
-    )
-}}
-
 with genuine_orders as (
     select *
     from {{ ref('fct_orders') }}
@@ -24,3 +17,4 @@ from products p
 left join genuine_orders g on p.product_id = g.product_id
 group by p.product_id, p.product_name, p.category, p.sub_category
 order by total_orders desc
+limit 10

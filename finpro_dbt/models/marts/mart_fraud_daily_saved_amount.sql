@@ -4,8 +4,7 @@
         partition_by={
             "field": "event_date",
             "data_type": "date",
-        },
-        cluster_by=['user_id']
+        }
     )
 }}
 
@@ -22,4 +21,3 @@ select
     count(order_id) as fraud_attempts
 from fraud_orders
 group by event_date, user_id
-order by event_date desc

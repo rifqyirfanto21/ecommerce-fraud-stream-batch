@@ -207,34 +207,12 @@ services:
     networks:
       - project-net
 
-  prometheus:
-    image: prom/prometheus:v2.51.0
-    ports:
-      - "${PROM_PORT}:9090"
-    volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-    networks:
-      - project-net
-
-  grafana:
-    image: grafana/grafana:10.3.3
-    ports:
-      - "${GRAFANA_PORT}:3000"
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./monitoring/dashboards:/var/lib/grafana/dashboards:ro
-    depends_on:
-      - prometheus
-    networks:
-      - project-net
-
 networks:
   project-net:
 
 volumes:
   pg_airflow_data:
   pg_dwh_data:
-  grafana_data:
   zk_data:
   zk_log:
   kafka_data:

@@ -19,4 +19,3 @@ select
     count(order_id) as total_fraud_attempts
 from fraud_orders
 group by event_date
-order by event_date

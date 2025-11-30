@@ -18,7 +18,7 @@ select
     trim(name) as user_name,
     email,
     phone_number,
-    REGEXP_REPLACE(phone_number, '[^0-9]', '', 'g') as phone_number_numeric,
+    REGEXP_REPLACE(phone_number, '[^0-9]', '') as phone_number_numeric,
     created_date,
     ingestion_ts
 from users

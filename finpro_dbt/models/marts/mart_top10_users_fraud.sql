@@ -1,14 +1,3 @@
-{{
-    config(
-        materialized='table',
-        partition_by={
-            "field": "event_ts", 
-            "data_type": "timestamp"
-        },
-        cluster_by=['user_id']
-    )
-}}
-
 with fraud_orders as (
     select *
     from {{ ref('fct_orders') }}
@@ -27,3 +16,4 @@ from users u
 left join fraud_orders f on u.user_id = f.user_id
 group by u.user_id, u.user_name
 order by fraud_attempts desc
+limit 10

@@ -1,10 +1,3 @@
-{{
-    config(
-        materialized='table',
-        cluster_by=['user_id']
-    )
-}}
-
 with genuine_orders as (
     select *
     from {{ ref('fct_orders') }}
@@ -22,3 +15,4 @@ from users u
 left join genuine_orders g on u.user_id = g.user_id
 group by u.user_id, u.user_name
 order by orders_count desc
+limit 10

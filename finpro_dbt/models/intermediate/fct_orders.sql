@@ -5,7 +5,7 @@
             "field": "event_ts",
             "data_type": "timestamp",
         },
-        cluster_by=['user_id', 'product_id', 'country', 'status']
+        cluster_by=['user_id', 'product_id', 'country', 'fraud_status']
     )
 }}
 
@@ -25,13 +25,13 @@ select
     o.order_id,
     cast(REGEXP_REPLACE(o.user_id, '^U', '') as INT64) as user_id,
     cast(REGEXP_REPLACE(o.product_id, '^P', '') as INT64) as product_id,
-    quantity,
-    amount_numeric as amount,
-    country,
-    status as fraud_status,
-    created_date,
-    event_ts,
-    ingestion_ts
+    o.quantity,
+    o.amount_numeric as amount,
+    o.country,
+    o.status as fraud_status,
+    o.created_date,
+    o.event_ts,
+    o.ingestion_ts
 from orders o
 join users u on cast(REGEXP_REPLACE(o.user_id, '^U', '') as INT64) = u.user_id
 join products p on cast(REGEXP_REPLACE(o.product_id, '^P', '') as INT64) = p.product_id

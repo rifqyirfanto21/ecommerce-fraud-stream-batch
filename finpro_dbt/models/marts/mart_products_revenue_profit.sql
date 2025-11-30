@@ -1,10 +1,6 @@
 {{
     config(
         materialized='table',
-        partition_by={
-            "field": "created_date", 
-            "data_type": "timestamp"
-        },
         cluster_by=['product_id', 'category', 'sub_category']
     )
 }}
@@ -28,4 +24,3 @@ select
 from products p
 left join genuine_orders g on p.product_id = g.product_id
 group by p.product_id, p.product_name, p.category, p.sub_category
-order by revenue desc
