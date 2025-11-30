@@ -136,11 +136,18 @@ services:
       - zk_log:/var/lib/zookeeper/log
     networks:
       - project-net
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo stat | nc 127.0.0.1 2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   kafka:
     image: confluentinc/cp-kafka:7.6.1
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_healthy
     environment:
       KAFKA_BROKER_ID: ${KAFKA_BROKER_ID}
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:${ZOOKEEPER_PORT}
@@ -155,6 +162,12 @@ services:
       - kafka_data:/var/lib/kafka/data
     networks:
       - project-net
+    healthcheck:
+      test: ["CMD", "bash", "-c", "kafka-broker-api-versions --bootstrap-server kafka:29092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   kafka-ui:
     image: provectuslabs/kafka-ui:latest

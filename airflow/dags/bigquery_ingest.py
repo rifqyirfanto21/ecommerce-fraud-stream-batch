@@ -45,8 +45,8 @@ SCHEMA_MAP = {
 
     "raw_orders": [
         {"name": "order_id",       "type": "STRING",   "mode": "REQUIRED"},
-        {"name": "user_id",        "type": "INT64",    "mode": "REQUIRED"},
-        {"name": "product_id",     "type": "INT64",    "mode": "REQUIRED"},
+        {"name": "user_id",        "type": "STRING",   "mode": "REQUIRED"},
+        {"name": "product_id",     "type": "STRING",   "mode": "REQUIRED"},
         {"name": "quantity",       "type": "INT64",    "mode": "REQUIRED"},
         {"name": "amount",         "type": "STRING",   "mode": "REQUIRED"},
         {"name": "amount_numeric", "type": "INT64",    "mode": "REQUIRED"},

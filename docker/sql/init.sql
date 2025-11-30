@@ -24,8 +24,8 @@ CREATE TABLE IF NOT EXISTS raw_products (
 
 CREATE TABLE IF NOT EXISTS raw_orders (
     order_id        VARCHAR(50) PRIMARY KEY,
-    user_id         BIGINT NOT NULL,
-    product_id      BIGINT NOT NULL,
+    user_id         VARCHAR(50) NOT NULL,
+    product_id      VARCHAR(50) NOT NULL,
     quantity        INT NOT NULL,
     amount          VARCHAR(50) NOT NULL,
     amount_numeric  BIGINT NOT NULL,

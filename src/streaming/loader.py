@@ -1,4 +1,3 @@
-# src/streaming/loader.py
 import json
 import time
 from typing import List, Dict, Any
@@ -18,33 +17,32 @@ def parse_order(msg_value: Dict[str, Any]) -> Dict[str, Any]:
     """
     Ensure the order dict has the shape expected by upsert_processed_orders.
     - order_id: "O123"
-    - user_id: int or "U123" -> returns numeric
-    - product_id: int or "P123" -> returns numeric
+    - user_id: now kept as full string ID (e.g., "U123")
+    - product_id: now kept as full string ID (e.g., "P123")
     - created_date, event_ts kept as ISO strings
     """
     o = dict(msg_value)  # copy
 
-    # normalize user_id/product_id if prefixed with U/P
+    # PERUBAHAN KRITIS: Hentikan konversi ke INT. Pertahankan sebagai string.
+    # user_id dan product_id harus tetap berupa string karena kolom DB sekarang VARCHAR.
+    
     uid = o.get("user_id")
     pid = o.get("product_id")
+    
+    # Konversi UID/PID ke string, jika belum (misalnya jika datang dari data lama)
     try:
-        if isinstance(uid, str) and uid.upper().startswith("U"):
-            o["user_id"] = int(uid.replace("U", ""))
-        else:
-            o["user_id"] = int(uid)
+        o["user_id"] = str(uid)
     except Exception:
-        # leave as is; DB may reject if invalid
+        # Jika gagal konversi ke string, biarkan nilai aslinya
         pass
 
     try:
-        if isinstance(pid, str) and pid.upper().startswith("P"):
-            o["product_id"] = int(pid.replace("P", ""))
-        else:
-            o["product_id"] = int(pid)
+        o["product_id"] = str(pid)
     except Exception:
+        # Jika gagal konversi ke string, biarkan nilai aslinya
         pass
-
-    # ensure ints
+    
+    # Kolom numerik tetap harus dijamin int
     try:
         o["quantity"] = int(o.get("quantity", 0))
         o["amount_numeric"] = int(o.get("amount_numeric", 0))
@@ -52,11 +50,11 @@ def parse_order(msg_value: Dict[str, Any]) -> Dict[str, Any]:
         pass
 
     # ensure created_date/event_ts are strings (ISO)
-    # if they're datetime objects already, convert
     for k in ("created_date", "event_ts"):
         v = o.get(k)
         if hasattr(v, "isoformat"):
             o[k] = v.isoformat()
+            
     return o
 
 def main():

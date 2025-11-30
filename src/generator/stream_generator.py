@@ -151,8 +151,8 @@ def continuous_orders_stream(
 
                     order = {
                         "order_id": f"O{order_counter}",
-                        "user_id": int(u),
-                        "product_id": int(bot_pid),
+                        "user_id": f"U{u}",
+                        "product_id": f"P{bot_pid}",
                         "quantity": int(qty),
                         "amount": format_rupiah(amount_numeric),
                         "amount_numeric": int(amount_numeric),
@@ -187,8 +187,8 @@ def continuous_orders_stream(
 
             order = {
                 "order_id": f"O{order_counter}",
-                "user_id": int(user),
-                "product_id": int(product),
+                "user_id": f"U{user}",
+                "product_id": f"P{product}",
                 "quantity": int(quantity),
                 "amount": format_rupiah(amount_numeric),
                 "amount_numeric": int(amount_numeric),
