@@ -3,6 +3,7 @@
 from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.python import PythonOperator
+from airflow.operators.dummy import DummyOperator
 from src.generator.batch_generator import generate_users, generate_products
 from src.utils.db_utils import insert_users, insert_products
 
@@ -30,7 +31,11 @@ with DAG(
     max_active_runs=1,
     default_args=default_args,
     tags=["raw", "postgres", "users"],
-):
+) as dag:
+    
+    start = DummyOperator(task_id='start')
+    end = DummyOperator(task_id='end')
+
     u1 = PythonOperator(
         task_id="generate_users",
         python_callable=generate_users_task,
@@ -41,7 +46,7 @@ with DAG(
         python_callable=load_users_task,
     )
 
-    u1 >> u2
+    start >> u1 >> u2 >> end
 
 # Products DAG
 def generate_products_task():
@@ -60,7 +65,11 @@ with DAG(
     max_active_runs=1,
     default_args=default_args,
     tags=["raw", "postgres", "products"],
-):
+) as dag:
+    
+    start = DummyOperator(task_id='start')
+    end = DummyOperator(task_id='end')
+
     p1 = PythonOperator(
         task_id="generate_products",
         python_callable=generate_products_task,
@@ -71,4 +80,4 @@ with DAG(
         python_callable=load_products_task,
     )
 
-    p1 >> p2
+    start >> p1 >> p2 >> end

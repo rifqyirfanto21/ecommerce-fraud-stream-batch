@@ -10,7 +10,8 @@ x-airflow-env: &airflow-env
   _AIRFLOW_WWW_USER_PASSWORD: airflow
   PYTHONPATH: "/opt/airflow/"
   DBT_PROFILES_DIR: /opt/dbt
-  GOOGLE_APPLICATION_CREDENTIALS: /opt/gcp/service-account.json
+  GOOGLE_APPLICATION_CREDENTIALS: /opt/gcp/adc.json
+  #GOOGLE_APPLICATION_CREDENTIALS: /opt/gcp/service-account.json
 
 x-airflow-common: 
   &airflow-common
@@ -26,9 +27,10 @@ x-airflow-common:
     - ./airflow/logs:/opt/airflow/logs
     - ./airflow/plugins:/opt/airflow/plugins
     - ./airflow/config:/opt/airflow/config
-    - ./airflow/dbt:/opt/dbt
+    - ./finpro_dbt:/opt/dbt
     - ./src:/opt/airflow/src
-    - ./gcp:/opt/gcp:ro
+    - ~/.config/gcloud/application_default_credentials.json:/opt/gcp/adc.json:ro
+    # - ./gcp:/opt/gcp
   networks:
     - project-net
   user: "${AIRFLOW_UID:-50000}:0"
@@ -82,7 +84,7 @@ services:
       - |
         mkdir -p /sources/logs /sources/dags /sources/plugins
         chown -R "${AIRFLOW_UID}:0" /sources/{logs,dags,plugins}
-        exec /entrypoint airflow db upgrade
+        exec /entrypoint airflow db migrate
     environment:
       <<: *airflow-env
       _AIRFLOW_DB_MIGRATE: 'true'
@@ -99,7 +101,8 @@ services:
       - "8080:8080"
     restart: always
     depends_on:
-      - airflow-init
+      airflow-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8080/health || exit 1"]
       interval: 10s
@@ -113,7 +116,8 @@ services:
     command: scheduler
     restart: always
     depends_on:
-      - airflow-init
+      airflow-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", 'airflow jobs check --job-type SchedulerJob --hostname "$${HOSTNAME}"']
       interval: 10s
@@ -182,8 +186,11 @@ services:
       LOADER_BATCH_SIZE: 100
       LOADER_FLUSH_INTERVAL: 5
     depends_on:
-      - kafka
-      - dwh_postgres
+      kafka:
+        condition: service_healthy
+      dwh_postgres:
+        condition: service_started
+    restart: always
     networks:
       - project-net
 
