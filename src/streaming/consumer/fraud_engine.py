@@ -23,7 +23,7 @@ producer_fraud = KafkaProducer(
     value_serializer=lambda v: json.dumps(v).encode("utf-8")
 )
 
-BUFFER = deque(maxlen=200)   # increase buffer length for reliable detection
+BUFFER = deque(maxlen=200)
 WINDOW = timedelta(seconds=10)
 
 
@@ -40,7 +40,7 @@ def detect_bot_mode_A(order):
         if o.get("user_id") == user and o.get("product_id") == pid
         and now - datetime.fromisoformat(o["event_ts"]) < WINDOW
     ]
-    return len(recent) >= 2  # + current => 3
+    return len(recent) >= 2
 
 
 def detect_bot_mode_B(order):
@@ -94,8 +94,6 @@ def detect_bot_mode_C(order):
     if len(set(qtys)) != 1:
         return False
 
-    # consecutive meaning there were no interleaving orders outside the seq
-    # Using BUFFER with recent window helps ensure 'consecutive-ish' sequence.
     return True
 
 
@@ -135,16 +133,13 @@ try:
     for msg in consumer:
         order = msg.value
 
-        # append to buffer first (so detection includes recent history)
         BUFFER.append(order)
 
         status = apply_fraud_rules(order)
         order["status"] = status
 
-        # emit processed full stream
         producer_processed.send("processed_orders", order)
 
-        # emit fraud alerts only for frauds
         if status == "Fraud":
             producer_fraud.send("fraud_alerts", order)
 

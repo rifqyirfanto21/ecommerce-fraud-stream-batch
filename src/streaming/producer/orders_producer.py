@@ -10,6 +10,9 @@ producer = KafkaProducer(
 )
 
 def send_to_kafka(order: dict):
+    """
+    Send order to Kafka topic "orders".
+    """
     producer.send("orders", order)
 
 if __name__ == "__main__":

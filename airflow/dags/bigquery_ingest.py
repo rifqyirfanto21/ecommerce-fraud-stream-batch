@@ -7,6 +7,7 @@ from airflow.providers.google.cloud.transfers.gcs_to_bigquery import GCSToBigQue
 from airflow.providers.google.cloud.operators.gcs import GCSDeleteObjectsOperator
 from airflow.providers.google.cloud.sensors.gcs import GCSObjectExistenceSensor
 from airflow.operators.dummy import DummyOperator
+from utils.monitor_utils import monitor_start, monitor_finish, monitor_validate, monitor_failed
 
 GCS_BUCKET = "rifqy_ecommerce_finpro"
 BQ_PROJECT = "jcdeah-006"
@@ -70,24 +71,36 @@ with DAG(
     dag_id="postgres_to_bigquery_raw_tables",
     description="DAG to Incremental ELT raw tables pipeline insertion from PostgreSQL to BigQuery",
     start_date=datetime(2025, 1, 1),
-    schedule_interval=None,
+    schedule_interval="0 1 * * *",
     catchup=False,
     default_args=default_args,
     tags=["raw", "bigquery"],
+    on_failure_callback=monitor_failed
 ) as dag:
     
     start = DummyOperator(task_id="start")
     end = DummyOperator(task_id="end")
 
     for table in TABLES:
+        monitor_start_task = PythonOperator(
+            task_id=f"monitor_start_{table}",
+            python_callable=monitor_start,
+            op_kwargs={
+                "source_table": table,
+                "destination_table": table,
+                "is_incremental": True
+            },
+            provide_context=True
+        )
+
         pg_to_gcs = PostgresToGCSOperator(
             task_id=f"pg_to_gcs_{table}",
             postgres_conn_id="postgres_default",
-            # sql=f"""
-            #     SELECT * FROM {table}
-            #     WHERE DATE(created_date) = DATE('{{{{ ds }}}}'::TIMESTAMP - INTERVAL '1 day');
-            #     """,
-            sql=f"SELECT * FROM {table}",
+            sql=f"""
+                SELECT * FROM {table}
+                WHERE DATE(created_date) = DATE('{{{{ ds }}}}'::TIMESTAMP - INTERVAL '1 day');
+                """,
+            # sql=f"SELECT * FROM {table}",
             bucket=GCS_BUCKET,
             filename=f"raw/{table}_{{{{ ds }}}}.json",
             export_format="JSON",
@@ -117,6 +130,34 @@ with DAG(
             gcp_conn_id="google_cloud_default",
             )
         
+        monitor_finish_task = PythonOperator(
+            task_id=f"monitor_finish_{table}",
+            python_callable=monitor_finish,
+            op_kwargs={
+                "source_table": table,
+                "destination_table": table,
+                "bq_project": BQ_PROJECT,
+                "bq_dataset": BQ_DS,
+                "is_incremental": True
+            },
+            provide_context=True
+        )
+
+        task_sleep_task = PythonOperator(
+            task_id=f'sleep_{table}',
+            python_callable=lambda: time.sleep(3),
+        )
+
+        monitor_validate_task = PythonOperator(
+            task_id=f"monitor_validate_{table}",
+            python_callable=monitor_validate,
+            op_kwargs={
+                "source_table": table,
+                "destination_table": table
+            },
+            provide_context=True
+        )
+
         gcs_cleanup = GCSDeleteObjectsOperator(
             task_id=f"gcs_{table}_cleanup",
             bucket_name=GCS_BUCKET,
@@ -124,4 +165,4 @@ with DAG(
             trigger_rule="all_done",
             )
         
-        start >> pg_to_gcs >> wait_for_gcs >> gcs_to_bq >> gcs_cleanup >> end
+        start >> monitor_start_task >> pg_to_gcs >> wait_for_gcs >> gcs_to_bq >> monitor_finish_task >> task_sleep_task >> monitor_validate_task >> gcs_cleanup >> end

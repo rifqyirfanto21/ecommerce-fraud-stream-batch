@@ -16,8 +16,7 @@ with fraud_orders as (
 )
 select
     event_date,
-    user_id,
     sum(amount) as saved_amount,
     count(order_id) as fraud_attempts
 from fraud_orders
-group by event_date, user_id
+group by event_date

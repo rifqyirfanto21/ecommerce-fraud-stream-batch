@@ -96,14 +96,11 @@ def continuous_orders_stream(
     """
     Orders event stream generator.
     """
-    # send_func: callable(order_dict), default -> print
     send = send_func or (lambda o: print(o))
 
-    # initial load from Postgres raw tables
     users_df = fetch_users_df()
     products_df = fetch_products_df()
 
-    # wait until batch data exists
     while users_df.empty or products_df.empty:
         print("Waiting for raw_users/raw_products in Postgres...")
         time.sleep(5)
@@ -122,7 +119,6 @@ def continuous_orders_stream(
         while True:
             now = datetime.now(timezone.utc)
 
-            # refresh users/products periodically
             if time.time() - last_refresh > refresh_interval_seconds:
                 users_df = fetch_users_df()
                 products_df = fetch_products_df()
@@ -133,7 +129,6 @@ def continuous_orders_stream(
                     last_refresh = time.time()
                     print("Refreshed users/products cache from Postgres")
 
-            # BOT burst fabrication
             if random.random() < bot_burst_probability and len(user_ids) >= 3:
                 mode, bot_seq = generate_bot_sequence(user_ids)
                 bot_pid = random.choice(product_ids)
@@ -167,7 +162,6 @@ def continuous_orders_stream(
                     time.sleep(random.uniform(0.1, 0.3))
                 continue
 
-            # normal flow
             user = random.choice(user_ids)
             product = random.choice(product_ids)
             price = int(price_map[product])

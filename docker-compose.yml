@@ -10,8 +10,7 @@ x-airflow-env: &airflow-env
   _AIRFLOW_WWW_USER_PASSWORD: airflow
   PYTHONPATH: "/opt/airflow/"
   DBT_PROFILES_DIR: /opt/dbt
-  GOOGLE_APPLICATION_CREDENTIALS: /opt/gcp/adc.json
-  #GOOGLE_APPLICATION_CREDENTIALS: /opt/gcp/service-account.json
+  GOOGLE_APPLICATION_CREDENTIALS: /opt/gcp/service-account.json
 
 x-airflow-common: 
   &airflow-common
@@ -29,8 +28,7 @@ x-airflow-common:
     - ./airflow/config:/opt/airflow/config
     - ./finpro_dbt:/opt/dbt
     - ./src:/opt/airflow/src
-    - ~/.config/gcloud/application_default_credentials.json:/opt/gcp/adc.json:ro
-    # - ./gcp:/opt/gcp
+    - ./gcp/service-account.json:/opt/gcp/service-account.json:ro
   networks:
     - project-net
   user: "${AIRFLOW_UID:-50000}:0"
@@ -50,6 +48,7 @@ services:
       - "${POSTGRES_AIRFLOW_PORT}:5432"
     volumes:
       - pg_airflow_data:/var/lib/postgresql/data
+      - ./docker/sql/init_metadata.sql:/docker-entrypoint-initdb.d/init_metadata.sql:ro
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "${POSTGRES_AIRFLOW_USER}"]
       interval: 5s

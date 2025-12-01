@@ -6,6 +6,8 @@ from airflow.operators.python import PythonOperator
 from airflow.operators.dummy import DummyOperator
 from src.generator.batch_generator import generate_users, generate_products
 from src.utils.db_utils import insert_users, insert_products
+from utils.notif_callbacks import dag_success_notif_message, failed_notif_message
+
 
 default_args = {
     "owner": "rifqy",
@@ -16,7 +18,7 @@ default_args = {
 
 # Users DAG
 def generate_users_task():
-    return generate_users(50)
+    return generate_users(100)
 
 def load_users_task(ti):
     users = ti.xcom_pull(task_ids="generate_users")
@@ -31,6 +33,7 @@ with DAG(
     max_active_runs=1,
     default_args=default_args,
     tags=["raw", "postgres", "users"],
+    on_failure_callback=failed_notif_message
 ) as dag:
     
     start = DummyOperator(task_id='start')
@@ -46,11 +49,16 @@ with DAG(
         python_callable=load_users_task,
     )
 
-    start >> u1 >> u2 >> end
+    u3 = PythonOperator(
+        task_id="load_users_dag_success",
+        python_callable=dag_success_notif_message,
+    )
+
+    start >> u1 >> u2 >> u3 >> end
 
 # Products DAG
 def generate_products_task():
-    return generate_products(50)
+    return generate_products(100)
 
 def load_products_task(ti):
     products = ti.xcom_pull(task_ids="generate_products")
@@ -65,6 +73,7 @@ with DAG(
     max_active_runs=1,
     default_args=default_args,
     tags=["raw", "postgres", "products"],
+    on_failure_callback=failed_notif_message
 ) as dag:
     
     start = DummyOperator(task_id='start')
@@ -80,4 +89,9 @@ with DAG(
         python_callable=load_products_task,
     )
 
-    start >> p1 >> p2 >> end
+    p3 = PythonOperator(
+        task_id="load_products_dag_success",
+        python_callable=dag_success_notif_message,
+    )
+
+    start >> p1 >> p2 >> p3 >> end

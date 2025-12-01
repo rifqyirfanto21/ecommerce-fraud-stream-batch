@@ -4,16 +4,14 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.engine import Engine
 import pandas as pd
 from typing import List, Dict, Any, Optional
-
-# load config (tries project-local src.utils.config then top-level src.config)
-try:
-    from src.utils.config import DB_CONFIG  # type: ignore
-except Exception:
-    from src.utils.config import DB_CONFIG  # type: ignore
+from src.utils.config import DB_CONFIG
 
 _engine: Optional[Engine] = None
 
 def get_engine() -> Engine:
+    """
+    Database engine connection to PostgreSQL.
+    """
     global _engine
     if _engine is None:
         url = (
@@ -25,12 +23,14 @@ def get_engine() -> Engine:
             pool_size=5,
             max_overflow=5,
             pool_pre_ping=True,
-            pool_recycle=1800,  # recycle every 30 mins
+            pool_recycle=1800,
         )
     return _engine
 
 def insert_users(users: List[Dict[str, Any]]):
-    # insert batch into raw_users; dedupe by email
+    """
+    Insert generated users data into raw_users table in PostgreSQL.
+    """
     engine = get_engine()
     query = text(
         """
@@ -50,7 +50,9 @@ def insert_users(users: List[Dict[str, Any]]):
             conn.execute(query, users)
 
 def insert_products(products: List[Dict[str, Any]]):
-    # insert batch into raw_products; dedupe by product_name
+    """
+    Insert generated products data into raw_products table in PostgreSQL.
+    """
     engine = get_engine()
     query = text(
         """
@@ -72,6 +74,9 @@ def insert_products(products: List[Dict[str, Any]]):
             conn.execute(query, products)
 
 def fetch_users_df(limit: Optional[int] = None) -> pd.DataFrame:
+    """
+    Extract users table from raw_users in PostgreSQL as DataFrame.
+    """
     engine = get_engine()
     sql = (
         "SELECT user_id, name, email, phone_number, created_date "
@@ -85,6 +90,9 @@ def fetch_users_df(limit: Optional[int] = None) -> pd.DataFrame:
 
 
 def fetch_products_df(limit: Optional[int] = None) -> pd.DataFrame:
+    """
+    Extract products table from raw_products in PostgreSQL as DataFrame.
+    """
     engine = get_engine()
     sql = """
         SELECT product_id, product_name, brand, category, sub_category,
@@ -99,7 +107,9 @@ def fetch_products_df(limit: Optional[int] = None) -> pd.DataFrame:
         return pd.read_sql(sql, conn)
 
 def fetch_last_order_counter() -> int:
-    # extract numeric part of order_id like 'O1234' from raw_orders
+    """
+    Extract numeric part of order_id like 'O1234' from raw_orders.
+    """
     engine = get_engine()
     sql = text(
         """
@@ -116,8 +126,6 @@ def fetch_last_order_counter() -> int:
 def upsert_processed_orders(orders: List[Dict[str, Any]]):
     """
     Batch upsert into raw_orders.
-    - Inserts new records
-    - On conflict(order_id) → updates all mutable fields
     """
     if not orders:
         return
