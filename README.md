@@ -1,7 +1,7 @@
 # End-to-End Modern Data Platform: Batch, Streaming, Fraud Detection & ELT
 
-**Author:** Muhammad Rifqy Irfanto
-**Program:** Purwadhika Data Engineering Bootcamp
+**Author:** Muhammad Rifqy Irfanto  
+**Program:** Purwadhika Data Engineering Bootcamp  
 **Project:** Final Project (finpro)
 
 ---
