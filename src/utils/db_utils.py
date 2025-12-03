@@ -1,4 +1,3 @@
-# src/utils/db_utils.py
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.engine import Engine
@@ -108,7 +107,7 @@ def fetch_products_df(limit: Optional[int] = None) -> pd.DataFrame:
 
 def fetch_last_order_counter() -> int:
     """
-    Extract numeric part of order_id like 'O1234' from raw_orders.
+    Extract numeric part of order_id from raw_orders.
     """
     engine = get_engine()
     sql = text(

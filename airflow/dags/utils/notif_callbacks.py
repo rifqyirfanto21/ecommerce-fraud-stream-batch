@@ -4,14 +4,11 @@ from airflow.hooks.base import BaseHook
 
 DISCORD_CONN_ID = "discord_webhook_default"
 
-# ---------- small helpers ----------
-
 def _get_run_display(run_id: str) -> str:
     """
     Format Airflow run_id into a nicer label.
     """
     if "manual__" in run_id:
-        # manual__2025-11-30T12:34:56+00:00
         without_prefix = run_id.replace("manual__", "")
         execution_date = without_prefix.split("T")[0]
         execution_time = without_prefix.split("T")[1].split("+")[0][:8]
@@ -63,8 +60,6 @@ def _send_discord_embed(
         logging.warning(f"Discord alert failed: {e}")
 
 
-# ---------- 1) Data consistent ----------
-
 def consistent_notif_message(context, **kwargs):
     """
     Sends Discord embed when the data is consistent.
@@ -85,7 +80,7 @@ def consistent_notif_message(context, **kwargs):
         "All data successfully transferred and validated.\n"
         "No discrepancies detected between staging and target."
     )
-    color = 0x2ECC71  # green
+    color = 0x2ECC71
 
     fields = [
         {"name": "DAG", "value": dag_display_name, "inline": False},
@@ -101,8 +96,6 @@ def consistent_notif_message(context, **kwargs):
     _send_discord_embed(title, description, color, fields, footer_text)
     logging.info(f"Discord alert sent for consistent DAG: {dag_id}")
 
-
-# ---------- 2) Data inconsistent ----------
 
 def inconsistent_notif_message(context, **kwargs):
     """
@@ -124,7 +117,7 @@ def inconsistent_notif_message(context, **kwargs):
         "Row count mismatch between staging and target.\n"
         "Please investigate the data pipeline immediately."
     )
-    color = 0xF1C40F  # yellow / orange
+    color = 0xF1C40F
 
     fields = [
         {"name": "DAG", "value": dag_display_name, "inline": False},
@@ -141,8 +134,6 @@ def inconsistent_notif_message(context, **kwargs):
     logging.info(f"Discord alert sent for inconsistent DAG: {dag_id}")
 
 
-# ---------- 3) DAG success (overall) ----------
-
 def dag_success_notif_message(**context):
     """
     Sends Discord embed when the DAG run is successful.
@@ -156,7 +147,7 @@ def dag_success_notif_message(**context):
 
     title = "🎉 DAG Execution Successful"
     description = "All tasks completed successfully, and data has been processed as expected."
-    color = 0x2ECC71  # green
+    color = 0x2ECC71
 
     fields = [
         {"name": "DAG", "value": dag_display_name, "inline": False},
@@ -169,8 +160,6 @@ def dag_success_notif_message(**context):
     _send_discord_embed(title, description, color, fields, footer_text)
     logging.info(f"Discord alert sent for successful DAG: {dag_id}")
 
-
-# ---------- 4) Task / DAG failure ----------
 
 def failed_notif_message(context):
     """
@@ -189,13 +178,12 @@ def failed_notif_message(context):
     exception = context.get("exception")
     error_message = str(exception) if exception else "Unknown Error"
 
-    # Optional: truncate very long error messages to avoid giant Discord messages
     if len(error_message) > 800:
         error_message = error_message[:797] + "..."
 
     title = "🚨 DAG Execution Failed"
     description = "A task in the DAG has failed. Please investigate and resolve the issue."
-    color = 0xE74C3C  # red
+    color = 0xE74C3C
 
     fields = [
         {"name": "DAG", "value": dag_display_name, "inline": False},
