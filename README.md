@@ -1,7 +1,7 @@
 # End-to-End Modern Data Platform: Batch, Streaming, Fraud Detection & ELT
 
-**Author:** Muhammad Rifqy Irfanto  
-**Program:** Purwadhika Data Engineering Bootcamp  
+**Author:** Muhammad Rifqy Irfanto
+**Program:** Purwadhika Data Engineering Bootcamp
 **Project:** Final Project (finpro)
 
 ---
@@ -371,8 +371,6 @@ These fields are generated during streaming and transformation and are **not par
 
 ## 📁 Project Structure
 
-(Option C – hybrid: high-level overview with important directories expanded.)
-
     finpro/
     │
     ├── docker/
@@ -478,7 +476,7 @@ These DAGs can be scheduled or triggered manually for demonstration.
 ### Ingestion Monitoring
 
 - Compares row counts between PostgreSQL source tables and BigQuery destination tables.  
-- Logs comparisons into a dedicated monitoring structure (e.g., a metadata table).  
+- Logs comparisons into a dedicated monitoring structure named `ingestion_monitoring` table.  
 - Marks status as **Consistent** or **Inconsistent** per table / run.
 
 ### Discord Webhook Notifications
