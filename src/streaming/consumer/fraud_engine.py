@@ -48,8 +48,10 @@ def detect_bot_mode_B(order):
     """
     now = datetime.fromisoformat(order["event_ts"])
 
-    recent = [o for o in BUFFER
-              if now - datetime.fromisoformat(o["event_ts"]) < WINDOW]
+    recent = [
+        o for o in BUFFER
+        if now - datetime.fromisoformat(o["event_ts"]) < WINDOW
+    ]
 
     if len(recent) < 2:
         return False
@@ -57,19 +59,22 @@ def detect_bot_mode_B(order):
     seq = recent + [order]
 
     try:
-        uids = [int(o["user_id"]) for o in seq]
-    except Exception:
+        uids = [
+            int(str(o.get("user_id")).lstrip("Uu"))
+            for o in seq
+        ]
+    except (TypeError, ValueError):
         return False
 
-    pids = [o["product_id"] for o in seq]
-    qtys = [o["quantity"] for o in seq]
+    pids = [o.get("product_id") for o in seq]
+    qtys = [o.get("quantity") for o in seq]
 
     if len(set(pids)) != 1:
         return False
     if len(set(qtys)) != 1:
         return False
 
-    return uids == sorted(uids) and len(uids) >= 3
+    return len(uids) >= 3 and uids == sorted(uids)
 
 
 def detect_bot_mode_C(order):

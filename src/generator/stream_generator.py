@@ -63,15 +63,29 @@ def generate_bot_sequence(user_ids):
     Random generate for fabricated bot sequence.
     """
     mode = random.choice(["single_user_burst", "sequential_users", "clustered"])
+
     if mode == "single_user_burst":
         u = random.choice(user_ids)
         return mode, [u] * random.randint(3, 5)
     if mode == "sequential_users":
-        sample_size = min(len(user_ids), random.randint(3, 6))
-        seq = sorted(random.sample(user_ids, sample_size))
+        sorted_ids = sorted(user_ids)
+        max_sample_size = min(len(sorted_ids), 6)
+
+        if max_sample_size >= 3:
+            sample_size = random.randint(3, max_sample_size)
+        else:
+            sample_size = max_sample_size
+
+        if sample_size == 0:
+            return mode, []
+
+        max_start_index = len(sorted_ids) - sample_size
+        start_index = random.randint(0, max_start_index) if max_start_index > 0 else 0
+
+        seq = sorted_ids[start_index : start_index + sample_size]
         return mode, seq
     sample_size = min(len(user_ids), random.randint(3, 5))
-    seq = random.sample(user_ids, sample_size)
+    seq = random.sample(user_ids, sample_size) if sample_size > 0 else []
     return mode, seq
 
 def fabricate_midnight_timestamp_same_date(now: datetime) -> datetime:
